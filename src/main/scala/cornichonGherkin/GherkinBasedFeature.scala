@@ -4,16 +4,20 @@ import java.io.InputStreamReader
 
 import com.github.agourlay.cornichon.CornichonFeature
 import com.github.agourlay.cornichon.core.{FeatureDef, Step, Scenario => ScenarioDef}
-import com.github.agourlay.cornichon.steps.wrapped.AttachStep
-import gherkin.ast.{Background, GherkinDocument, Tag, Feature => GFeature, Scenario => GScenario, Step => GStep}
+import gherkin.ast.{
+  Background, GherkinDocument, Tag, Feature => GFeature, Scenario => GScenario,
+  ScenarioOutline => GScenarioOutline, Step => GStep
+}
 import gherkin.{AstBuilder, Parser}
 
 import scala.collection.JavaConverters._
 
 trait GherkinBasedFeature extends CornichonFeature with GherkinStepHelper with ExtractorHelper with ColumnHelper {
+
   import GherkinBasedFeature._
 
   def featureFile: String = discoverFeature(this.getClass)
+
   def stepDefinitions: List[GherkinStep]
 
   lazy val feature = generateFeature(loadFeature(featureFile), stepDefinitions)
@@ -44,9 +48,10 @@ object GherkinBasedFeature {
       case stream ⇒ new Parser(new AstBuilder).parse(new InputStreamReader(stream))
     }
 
-  def generateFeature(doc: GherkinDocument, stepDefinitions: List[GherkinStep]) = {
+  def generateFeature(doc: GherkinDocument, stepDefinitions: List[GherkinStep]): FeatureDef = {
     Option(doc.getFeature).fold(FeatureDef("[Empty]", Nil))(f ⇒ defineFeature(f, GherkinStepColl(stepDefinitions, goodTags(f.getTags))))
   }
+  //todo get dialect from upper functions
 
   def defineFeature(feature: GFeature, stepDefinitions: GherkinStepColl): FeatureDef = {
     val backgroundSteps = feature.getChildren.asScala.flatMap {
@@ -54,7 +59,12 @@ object GherkinBasedFeature {
       case _ ⇒ Nil
     }
 
-    val scenarios = feature.getChildren.asScala.collect {case s: GScenario ⇒ s}
+//    val b= feature.getLanguage
+//    val tetstestestest = feature.getChildren.asScala
+    val scenarios = feature.getChildren.asScala.collect {
+      case s: GScenario => s
+//      case so: GScenarioOutline => so.getExamples.asScala.map(ex => new GScenario(so.getTags, ex.getLocation, "Scenario", ))
+    }
 
     val focused = scenarios filter (s ⇒ stepDefinitions.isFocused(goodTags(s.getTags)))
 
@@ -69,7 +79,7 @@ object GherkinBasedFeature {
       val steps = s.getSteps.asScala.map(defineStep(_, stepDefinitions, tags))
       val allSteps = bgSteps ++ beforeSteps ++ steps ++ afterSteps
       val aroundSteps = stepDefinitions.around(tags, allSteps.toList)
-      
+
 
       ScenarioDef(s.getName, aroundSteps, ignored = ignored, pending = pending)
     }
@@ -83,31 +93,33 @@ object GherkinBasedFeature {
     val foundStep =
       stepDefinitions.stepDefinitions.foldLeft(None: Option[Step]) {
         case (None, s) ⇒ s.steps(step)
-        case (s @ Some(_), _) ⇒ s
+        case (s@Some(_), _) ⇒ s
       }
-    
+
     foundStep match {
       case Some(s) ⇒
         s.setTitle(step.getText)
 
       case None ⇒
         val message = "Step definition not found for: " + step.getText
-
         GherkinStep.errorStep(step.getText, GherkinError(message))
     }
   }
 }
 
 case class GherkinStepColl(allDefinitions: List[GherkinStep], featureTags: Set[String]) {
+
   import GherkinBasedFeature.{FocusTag, IgnoreTag, PendingTag}
 
-  lazy val stepDefinitions = allDefinitions.collect {case s: StepDefinition ⇒ s}
-  lazy val before = allDefinitions.collect {case s: Before ⇒ s}
-  lazy val after = allDefinitions.collect {case s: After ⇒ s}
-  lazy val around = allDefinitions.collect {case s: Around ⇒ s}
+  lazy val stepDefinitions = allDefinitions.collect { case s: StepDefinition ⇒ s }
+  lazy val before = allDefinitions.collect { case s: Before ⇒ s }
+  lazy val after = allDefinitions.collect { case s: After ⇒ s }
+  lazy val around = allDefinitions.collect { case s: Around ⇒ s }
 
   def isFocused(tags: Set[String]) = (tags ++ featureTags) contains FocusTag
+
   def isIgnored(tags: Set[String]) = (tags ++ featureTags) contains IgnoreTag
+
   def isPending(tags: Set[String]) = (tags ++ featureTags) contains PendingTag
 
   def before(tags: Set[String]): List[Step] = {

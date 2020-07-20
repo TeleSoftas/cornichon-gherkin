@@ -1,5 +1,5 @@
 Feature: Star Wars API
-         see https://swapi.co/
+  see https://swapi.co/
 
   Scenario: check out Luke Skywalker
     When I get http://swapi.co/api/people/1/
@@ -37,7 +37,7 @@ Feature: Star Wars API
     And I save path 'residents[0]' as 'first-resident'
     When I get <first-resident>
     Then response body at path name is: Luke Skywalker
-    
+
   Scenario: Load list of planets
     When I get http://swapi.co/api/planets/
     And response body at path results with whitelisting is
