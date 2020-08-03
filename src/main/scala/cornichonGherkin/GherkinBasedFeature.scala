@@ -4,10 +4,7 @@ import java.io.InputStreamReader
 
 import com.github.agourlay.cornichon.CornichonFeature
 import com.github.agourlay.cornichon.core.{FeatureDef, Step, Scenario => ScenarioDef}
-import gherkin.ast.{
-  Background, GherkinDocument, Tag, Feature => GFeature, Scenario => GScenario,
-  ScenarioOutline => GScenarioOutline, Step => GStep
-}
+import gherkin.ast.{Background, Examples, GherkinDocument, TableRow, Tag, Feature => GFeature, Scenario => GScenario, ScenarioOutline => GScenarioOutline, Step => GStep}
 import gherkin.{AstBuilder, Parser}
 
 import scala.collection.JavaConverters._
@@ -61,9 +58,25 @@ object GherkinBasedFeature {
 
 //    val b= feature.getLanguage
 //    val tetstestestest = feature.getChildren.asScala
-    val scenarios = feature.getChildren.asScala.collect {
-      case s: GScenario => s
-//      case so: GScenarioOutline => so.getExamples.asScala.map(ex => new GScenario(so.getTags, ex.getLocation, "Scenario", ))
+    val scenarios = feature.getChildren.asScala.flatMap {
+      case s: GScenario => List(s)
+      case so: GScenarioOutline => so.getExamples.asScala.flatMap { ex =>
+
+        getExTableAsMaps(ex).map { example =>
+
+          val steps = so.getSteps.asScala.map { s =>
+            new GStep(s.getLocation, s.getKeyword, fillArgs(s.getText, example), s.getArgument)
+          }
+          new GScenario(
+            so.getTags,
+            ex.getLocation,
+            so.getKeyword,
+            fillArgs(so.getName, example),
+            so.getDescription,
+            steps.asJava
+          )
+        }
+      }
     }
 
     val focused = scenarios filter (s ⇒ stepDefinitions.isFocused(goodTags(s.getTags)))
@@ -86,6 +99,16 @@ object GherkinBasedFeature {
 
     FeatureDef(feature.getName, cScenarios.toList)
   }
+
+  private def getExTableAsMaps(ex: Examples): List[Map[String, String]] = {
+    val rowToCells: TableRow => List[String] = r => r.getCells.asScala.map(_.getValue).toList
+
+    val keys = rowToCells(ex.getTableHeader)
+    ex.getTableBody.asScala.map(r => keys.zip(rowToCells(r)).toMap).toList
+  }
+
+  private def fillArgs(template: String, args: Map[String, String]): String =
+    args.foldLeft(template) { case (tpl, (key, value)) => tpl.replaceAll(s"<$key>", value) }
 
   private def goodTags(tags: java.util.List[Tag]) = tags.asScala.map(_.getName).toSet
 
