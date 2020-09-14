@@ -56,13 +56,11 @@ object GherkinBasedFeature {
       case _ ⇒ Nil
     }
 
-//    val b= feature.getLanguage
-//    val tetstestestest = feature.getChildren.asScala
     val scenarios = feature.getChildren.asScala.flatMap {
       case s: GScenario => List(s)
       case so: GScenarioOutline => so.getExamples.asScala.flatMap { ex =>
 
-        getExTableAsMaps(ex).map { example =>
+        getExTableAsMaps(ex).zipWithIndex.map { case (example, id) =>
 
           val steps = so.getSteps.asScala.map { s =>
             new GStep(s.getLocation, s.getKeyword, fillArgs(s.getText, example), s.getArgument)
@@ -71,7 +69,7 @@ object GherkinBasedFeature {
             so.getTags,
             ex.getLocation,
             so.getKeyword,
-            fillArgs(so.getName, example),
+            s"${ex.getKeyword} #${id + 1}: ${fillArgs(so.getName, example)}",
             so.getDescription,
             steps.asJava
           )

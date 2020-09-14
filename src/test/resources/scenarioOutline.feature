@@ -8,3 +8,4 @@ Feature: Star Wars API
       | path   | result |
       | people | 200    |
       | blabla | 404    |
+      | people | 200    |
